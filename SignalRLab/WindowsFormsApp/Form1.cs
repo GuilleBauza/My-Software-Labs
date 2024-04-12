@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -10,21 +11,21 @@ namespace WindowsFormsApp
 	public partial class Form1 : Form
 	{
 		HubConnection connection;
-		Message message;
+		ChatMessage message;
 		Random rnd;
 		public Form1()
 		{
 			InitializeComponent();
 
 			connection = new HubConnectionBuilder()
-				.WithUrl("http://192.168.1.10:5051/myHub")
+				.WithUrl("http://192.168.1.10:5167/TuDemandaAppChat")
 				.WithAutomaticReconnect()
 				.Build();
 
 			rnd = new Random();
 
-			connection.On<Message>("MessageReceived", OnReceiveMessage);
-			connection.On<List<Message>>("ReconnectedClient", OnReconnectedChat);
+			connection.On<ChatMessage>("MessageReceived", OnReceiveMessage);
+			connection.On<List<ChatMessage>>("ReconnectedClient", OnReconnectedChat);
 
 			var connected = Task.Run(async () =>
 			{
@@ -32,6 +33,8 @@ namespace WindowsFormsApp
 			});
 
 			Task.WaitAll(connected);
+
+			Debug.WriteLine($"ConnectionId: {connection.State}");
 
 			if (connection.State == HubConnectionState.Connected)
 			{
@@ -41,18 +44,18 @@ namespace WindowsFormsApp
 				});
 				Task.WaitAll(ReconnectedClient);
 			}
-			message = new Message($"user_{rnd.Next(60000)}");
+			message = new ChatMessage($"user_{rnd.Next(60000)}");
 		}//ctor
 
-		private void OnReceiveMessage(Message message)
+		private void OnReceiveMessage(ChatMessage message)
 		{
-			richTextBox1.Text += $"[{message.Time.ToShortTimeString()}] {message.Name}: {message.Text}\n";
+			richTextBox1.Text += $"[{message.time.ToShortTimeString()}] {message.name}: {message.text}\n";
 		}
 
-		private void OnReconnectedChat(List<Message> messages)
+		private void OnReconnectedChat(List<ChatMessage> messages)
 		{
 			foreach (var message in messages)
-				richTextBox1.Text += $"[{message.Time.ToShortTimeString()}] {message.Name}: {message.Text}\n";
+				richTextBox1.Text += $"[{message.time.ToShortTimeString()}] {message.name}: {message.text}\n";
 				//Console.WriteLine($"[{message.Time.ToShortTimeString()}] {message.Name} {message.Text}");		
 		}
 
@@ -60,7 +63,7 @@ namespace WindowsFormsApp
 		{
 			if (!string.IsNullOrWhiteSpace(textBox1.Text))
 			{
-				message.Text = textBox1.Text;
+				message.text = textBox1.Text;
 				Task.Run(async () =>
 				{
 					await connection.InvokeCoreAsync("SendMessage", args: new[] { message });
@@ -69,17 +72,32 @@ namespace WindowsFormsApp
 		}
 	}//class
 
-	public class Message
+	public class ChatMessage
 	{
-		public string Name { get; set; }
-		public string Text { get; set; }
-		public DateTime Time { get; set; }
+		public const string ACTION_MESSAGE_RECEIVED = "MessageReceived";
+		public const string ACTION_CONNECTED_CLIENT = "ReconnectedClient";
+		public const string INVOKE_METHOD_GETMESSAGES = "GetMessages";
+		public const string INVOKE_METHOD_SENDMESSAGE = "SendMessage";
+		public const string CHAT_HUB_ID = "TuDemandaAppChat";
 
-		public Message(string name, string text = "")
+		public string userId { get; set; }
+		public string avatar { get; set; } = "logo.png";
+		public string name { get; set; }
+		public string text { get; set; }
+		public DateTime time { get; set; } = DateTime.Now;
+
+		public string TimeText
 		{
-			Name = name;
-			Text = text;
-			Time = DateTime.Now;
+			get { return $"{time.ToShortTimeString()}"; }
 		}
-	}//class
+
+        public ChatMessage()
+        {
+        }
+
+        public ChatMessage(string name)
+        {
+            this.name = name;
+        }
+    }
 }//namespace
